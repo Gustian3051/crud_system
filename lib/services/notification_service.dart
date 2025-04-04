@@ -16,7 +16,11 @@ class NotificationService {
     await _notifications.initialize(settings);
 
     // Request notification permissions for Android
-    final androidImplementation = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation =
+        _notifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
     }
@@ -40,5 +44,28 @@ class NotificationService {
     );
 
     await _notifications.show(0, title, body, details);
+  }
+
+  // Notifikasi Khusus
+
+  Future<void> showUpdateNotification(String title) async {
+    await showNotification(
+      title: 'Task Updated',
+      body: 'Task "$title" has been updated.',
+    );
+  }
+
+  Future<void> showDeleteNotification(String title) async {
+    await showNotification(
+      title: 'Task Delete',
+      body: 'Task "$title" has been deleted.',
+    );
+  }
+
+  Future<void> showMissedDeadlineNotification(String title) async {
+    await showNotification(
+      title: 'Missed Deadline',
+      body: 'the deadline for "$title" has passed!',
+    );
   }
 }

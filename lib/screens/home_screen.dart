@@ -1,3 +1,5 @@
+import 'package:crud_system/helpers/database_helper.dart';
+import 'package:crud_system/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:crud_system/components/add_task_dialog.dart';
 import 'package:crud_system/components/task_item.dart';
@@ -14,64 +16,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final NotificationService _notificationService = NotificationService();
+  final DatabaseHelper _dbHelper = DatabaseHelper();
   List<Task> _tasks = [];
 
   @override
   void initState() {
     super.initState();
+    _notificationService.initialize();
     _loadTasks();
-    widget.taskService.checkDeadlineTasks(); // Cek deadline saat init
   }
 
   Future<void> _loadTasks() async {
-    final tasks = await widget.taskService.getTask();
+    final tasks = await _dbHelper.getTasks();
     setState(() => _tasks = tasks);
+
+    final now = DateTime.now();
+    for (var task in tasks) {
+      if (task.deadline != null && task.deadline!.isBefore(now) && !task.isCompleted) {
+        await _notificationService.showMissedDeadlineNotification(task.title);
+      }
+    }
   }
 
   Future<void> _addTask() async {
     final newTask = await showDialog<Task>(
       context: context,
-      builder: (context) => AddTaskDialog(),
+      builder: (_) => const AddTaskDialog(),
     );
 
     if (newTask != null) {
-      await widget.taskService.addTask(newTask);
+      await _dbHelper.insertTask(newTask);
+      await _notificationService.showNotification(
+        title: 'Task Created',
+        body: 'Task "${newTask.title}" has been added.',
+      );
       _loadTasks(); // Refresh list
     }
   }
 
-  Future<void> _updateTask(Task task) async {
+  Future<void> _editTask(Task task) async {
     final updatedTask = await showDialog<Task>(
       context: context,
-      builder: (context) => AddTaskDialog(task: task),
+      builder: (_) => AddTaskDialog(task: task),
     );
 
     if (updatedTask != null) {
-      await widget.taskService.updateTask(updatedTask);
+      await _dbHelper.updateTask(updatedTask);
+      await _notificationService.showUpdateNotification(updatedTask.title);
       _loadTasks(); // Refresh list
     }
   }
 
-  Future<void> _deleteTask(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Task'),
-        content: const Text('Confirm deletion?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-        ],
-      )
-    );
-
-    if (confirmed == true) {
-      await widget.taskService.deleteTask(id);
-      _loadTasks();
-    }
+  Future<void> _deleteTask(Task task) async {
+    await _dbHelper.deleteTask(task.id!);
+    await _notificationService.showDeleteNotification(task.title);
+    _loadTasks();
   }
 
   @override
@@ -84,23 +84,10 @@ class _HomeScreenState extends State<HomeScreen> {
               : ListView.builder(
                 itemCount: _tasks.length,
                 itemBuilder: (context, index) {
-                  final task = _tasks[index];
                   return TaskItem(
-                    task: task,
-                    onEdit: () async {
-                      final updateTask = await showDialog<Task>(
-                        context: context,
-                        builder: (context) => AddTaskDialog(task: task),
-                      );
-                      if (updateTask != null) {
-                        await widget.taskService.updateTask(updateTask);
-                        _loadTasks();
-                      }
-                    },
-                    onDelete: () async {
-                      await widget.taskService.deleteTask(task.id!);
-                      _loadTasks();
-                    },
+                    task: _tasks[index],
+                    onEdit: _editTask,
+                    onDelete: _deleteTask,
                   );
                 },
               ),
